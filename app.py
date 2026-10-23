@@ -109,4 +109,3 @@ else:
             resultado.to_csv(index=False).encode("utf-8-sig"),
             file_name=f"clientes_{grupo}_{mes.replace(' ', '_')}.csv",
             mime="text/csv", key=f"baixar_volume_{grupo}")
-
