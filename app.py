@@ -1,81 +1,90 @@
+
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Consulta Comercial", page_icon="📊", layout="wide")
-
+st.set_page_config(page_title="Consulta Comercial", page_icon="📊", layout="centered")
 st.title("📊 Consulta Comercial")
-st.caption("Consulta por zona, e-commerce e marcas de tabaco")
+st.caption("Lista de não compradores por zona e dia")
 
 arquivo = st.file_uploader("Carregar planilha anonimizada (.xlsx)", type=["xlsx"])
 
 if arquivo is None:
-    st.info("Carrega a planilha para consultar os registros.")
+    st.info("Carrega a planilha para começar.")
     st.stop()
 
 try:
-    # A planilha original tem os títulos das colunas na linha 5 do Excel.
     df = pd.read_excel(arquivo, header=4)
-    df.columns = df.columns.astype(str).str.strip()
-    df = df.dropna(how="all")
 except Exception as e:
     st.error(f"Não consegui ler a planilha: {e}")
     st.stop()
 
-# Remove colunas vazias/sem nome, se houver.
-df = df.loc[:, ~df.columns.str.match(r"^Unnamed", case=False)]
+# Padroniza nomes das colunas, removendo espaços extras.
+df.columns = [str(c).strip().upper() for c in df.columns]
+df = df.loc[:, ~pd.Index(df.columns).str.match(r"^UNNAMED", case=False)]
+df = df.dropna(how="all")
 
-if "ZONA" not in df.columns:
-    st.error("Não encontrei a coluna 'ZONA'. Confere se foi carregada a planilha correta.")
+obrigatorias = ["COD CLIENTE", "ZONA", "DIA"]
+faltantes = [c for c in obrigatorias if c not in df.columns]
+if faltantes:
+    st.error("Não encontrei estas colunas na planilha: " + ", ".join(faltantes))
     st.stop()
 
+def texto(coluna):
+    return df[coluna].fillna("").astype(str).str.strip().str.upper()
+
+# Filtros globais: zona e dia de visita/rota.
 zonas = sorted(df["ZONA"].dropna().astype(str).str.strip().unique().tolist())
-zona_escolhida = st.selectbox("📍 Filtrar por zona", ["Todas"] + zonas)
+dias = sorted(df["DIA"].dropna().astype(str).str.strip().unique().tolist())
+
+col1, col2 = st.columns(2)
+with col1:
+    zona_escolhida = st.selectbox("📍 Zona", ["Todas"] + zonas)
+with col2:
+    dia_escolhido = st.selectbox("📅 Dia", ["Todos"] + dias)
 
 base = df.copy()
 if zona_escolhida != "Todas":
     base = base[base["ZONA"].astype(str).str.strip() == zona_escolhida]
+if dia_escolhido != "Todos":
+    base = base[base["DIA"].astype(str).str.strip() == dia_escolhido]
 
-st.caption(f"Registros na zona selecionada: {len(base)}")
+st.caption(f"Registros na seleção: {len(base)}")
 
-def normalizar(coluna):
-    if coluna not in base.columns:
-        return pd.Series("", index=base.index, dtype=str)
-    return base[coluna].fillna("").astype(str).str.strip().str.upper()
-
-def mostrar_resultados(titulo, resultado):
+def mostrar_codigos(titulo, resultado):
     st.subheader(titulo)
-    st.metric("Registros encontrados", len(resultado))
-    st.dataframe(resultado, hide_index=True, use_container_width=True)
-    if not resultado.empty:
-        csv = resultado.to_csv(index=False).encode("utf-8-sig")
-        st.download_button(
-            "📥 Baixar esta lista (CSV)",
-            data=csv,
-            file_name="consulta_comercial.csv",
-            mime="text/csv",
-            key=f"download_{titulo}"
-        )
+    codigos = resultado[["COD CLIENTE"]].copy()
+    codigos["COD CLIENTE"] = codigos["COD CLIENTE"].astype(str).str.replace(r"\.0$", "", regex=True)
+    codigos = codigos.drop_duplicates().sort_values("COD CLIENTE")
+    st.metric("Clientes não compradores", len(codigos))
+    st.dataframe(codigos, hide_index=True, use_container_width=True)
+    st.download_button(
+        "📥 Baixar códigos dos clientes (CSV)",
+        data=codigos.to_csv(index=False).encode("utf-8-sig"),
+        file_name="codigos_nao_compradores.csv",
+        mime="text/csv",
+        key="download_" + "".join(ch if ch.isalnum() else "_" for ch in titulo)
+    )
 
 st.divider()
 st.subheader("🛒 E-commerce")
-if st.button("E-commerce sem compra no mês", use_container_width=True):
-    # Mantém a regra combinada anteriormente: perfil E-COMM e COMPRADORES diferente de OK.
+if st.button("NÃO COMPRADORES E-COMMERCE", use_container_width=True):
     if "PERFIL DIGITAL" not in base.columns or "COMPRADORES" not in base.columns:
-        st.error("Não encontrei a coluna 'PERFIL DIGITAL' ou 'COMPRADORES' na planilha.")
+        st.error("Não encontrei a coluna 'PERFIL DIGITAL' ou 'COMPRADORES'.")
     else:
-        perfil = normalizar("PERFIL DIGITAL")
-        compradores = normalizar("COMPRADORES")
+        perfil = base["PERFIL DIGITAL"].fillna("").astype(str).str.strip().str.upper()
+        compradores = base["COMPRADORES"].fillna("").astype(str).str.strip().str.upper()
+        # Cliente E-COMM sem OK na coluna COMPRADORES é não comprador.
         pendentes = base[(perfil == "E-COMM") & (compradores != "OK")]
-        mostrar_resultados("E-commerce sem compra no mês", pendentes)
+        mostrar_codigos("E-commerce sem compra no mês", pendentes)
 
 categorias = {
-    "💰 Marcas de baixo preço": [
+    "💰 Baixo preço": [
         "FIRST CUT BLUE",
         "FIRST CUT SILVER",
         "L&M FC SILVER BOX",
         "MLB BLUE SELECTION",
     ],
-    "🚬 Handling Above & Premium": [
+    "🚬 Handling": [
         "PARLIAMENT",
         "SAMPOERNA MENTHOL",
         "SAMPOERNA CRAVO",
@@ -92,8 +101,8 @@ categorias = {
 }
 
 st.divider()
-st.subheader("🚬 Consulta por marca")
-st.write("Abre uma categoria, seleciona uma ou mais marcas e toca em **Buscar clientes**. Serão exibidos registros com OK em pelo menos uma das marcas selecionadas.")
+st.subheader("Não compradores por marca")
+st.write("Seleciona uma categoria e uma ou mais marcas. O app mostra apenas o código de clientes que **não têm OK** em nenhuma das marcas selecionadas.")
 
 for i, (categoria, marcas) in enumerate(categorias.items()):
     with st.expander(categoria, expanded=False):
@@ -101,9 +110,9 @@ for i, (categoria, marcas) in enumerate(categorias.items()):
         marcas_faltantes = [m for m in marcas if m not in base.columns]
 
         if marcas_faltantes:
-            st.caption("Colunas não encontradas na planilha: " + ", ".join(marcas_faltantes))
+            st.caption("Colunas não encontradas: " + ", ".join(marcas_faltantes))
         if not marcas_existentes:
-            st.warning("Não encontrei colunas de marcas desta categoria na planilha.")
+            st.warning("Não encontrei colunas de marcas desta categoria.")
             continue
 
         selecionadas = st.multiselect(
@@ -112,12 +121,15 @@ for i, (categoria, marcas) in enumerate(categorias.items()):
             key=f"marcas_{i}",
         )
 
-        if st.button("Buscar clientes", key=f"buscar_{i}", use_container_width=True):
+        if st.button("Mostrar não compradores", key=f"buscar_{i}", use_container_width=True):
             if not selecionadas:
                 st.warning("Seleciona pelo menos uma marca.")
             else:
-                mascara = pd.Series(False, index=base.index)
+                # Para múltiplas marcas, mostra quem ainda não comprou NENHUMA das selecionadas:
+                # todas as marcas selecionadas precisam estar sem OK.
+                mascara = pd.Series(True, index=base.index)
                 for marca in selecionadas:
-                    mascara = mascara | (normalizar(marca) == "OK")
+                    comprou_marca = base[marca].fillna("").astype(str).str.strip().str.upper().eq("OK")
+                    mascara = mascara & (~comprou_marca)
                 resultado = base[mascara].copy()
-                mostrar_resultados(f"{categoria} — clientes com OK", resultado)
+                mostrar_codigos(f"{categoria} — não compradores", resultado)
