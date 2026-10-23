@@ -1,3 +1,34 @@
+import streamlit as st
+import pandas as pd
+
+st.set_page_config(page_title="Consulta Comercial", page_icon="📊", layout="centered")
+st.title("📊 Consulta Comercial")
+st.caption("Consulta por zona, dia, marcas, e-commerce e volume mensal de tabaco")
+
+arquivo = st.file_uploader("Carregar planilha anonimizada (.xlsx)", type=["xlsx"])
+if arquivo is None:
+    st.info("Carrega a planilha para começar.")
+    st.stop()
+try:
+    df = pd.read_excel(arquivo, header=4)
+except Exception as e:
+    st.error(f"Não consegui ler a planilha: {e}")
+    st.stop()
+
+df.columns = [str(c).strip().upper() for c in df.columns]
+df = df.loc[:, ~pd.Index(df.columns).str.match(r"^UNNAMED", case=False)].dropna(how="all")
+
+def achar(fragmento):
+    return next((c for c in df.columns if fragmento in str(c).upper()), None)
+
+codigo_col = achar("COD CLIENTE")
+zona_col = next((c for c in df.columns if str(c).strip().upper() == "ZONA"), None)
+dia_col = next((c for c in df.columns if str(c).strip().upper() == "DIA"), None)
+perfil_col = next((c for c in df.columns if str(c).strip().upper() == "PERFIL DIGITAL"), None)
+compradores_col = next((c for c in df.columns if str(c).strip().upper() == "COMPRADORES"), None)
+if not codigo_col:
+    st.error("Não encontrei a coluna de código do cliente (COD CLIENTE).")
+    st.stop()
 c1, c2 = st.columns(2)
 with c1:
     zonas = sorted(df[zona_col].dropna().astype(str).str.strip().unique()) if zona_col else []
