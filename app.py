@@ -109,20 +109,20 @@ else:
     mes = st.selectbox("📅 Mês do volume", list(meses.keys()), key="mes_volume")
     coluna_volume = meses[mes]
     p, m, g = st.columns(3)
-    with morto: ver_p = st.button("P", use_container_width=True, key="volume_p")
-    with até vai: ver_m = st.button("M", use_container_width=True, key="volume_m")
-    with top: ver_g = st.button("G", use_container_width=True, key="volume_g")
+    with morto: ver_p = st.button("morto", use_container_width=True, key="volume_p")
+    with até vai: ver_m = st.button("até vai", use_container_width=True, key="volume_m")
+    with top: ver_g = st.button("top", use_container_width=True, key="volume_g")
     if ver_p or ver_m or ver_g:
         volumes = pd.to_numeric(base[coluna_volume], errors="coerce").fillna(0)
         if ver_p:
             faixa, grupo = volumes <= 2.0, "P"
-            descricao = "P — até 2,0"
+            descricao = "morto — até 2,0"
         elif ver_m:
             faixa, grupo = (volumes > 2.0) & (volumes <= 10.0), "M"
-            descricao = "M — acima de 2,0 até 10,0"
+            descricao = "até vai — acima de 2,0 até 10,0"
         else:
             faixa, grupo = volumes > 10.0, "G"
-            descricao = "G — acima de 10,0"
+            descricao = "top — acima de 10,0"
         resultado = base.loc[faixa, [codigo_col]].copy()
         resultado["VOLUME DO MÊS"] = volumes.loc[faixa].round(2)
         resultado.columns = ["CÓDIGO DO CLIENTE", "VOLUME DO MÊS"]
