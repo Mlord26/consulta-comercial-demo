@@ -61,7 +61,7 @@ def mostrar_codigos(titulo, resultado):
 
 st.divider()
 st.subheader("🛒 E-commerce")
-if st.button("NÃO COMPRADORES E-COMMERCE", use_container_width=True):
+if st.button("NÃO COMP. E-COMMERCE", use_container_width=True):
     if not perfil_col or not compradores_col:
         st.error("Não encontrei as colunas PERFIL DIGITAL e/ou COMPRADORES.")
     else:
@@ -100,7 +100,7 @@ for i, (categoria, marcas) in enumerate(categorias.items()):
 
 st.divider()
 st.subheader("🚬 Classificação de volume mensal de tabaco")
-st.write("Escolhe o mês e depois P, M ou G. A lista mostra o código e o volume daquele mês.")
+st.write("Escolhe o mês e depois MORTO, ATÉ VAI ou TOP. A lista mostra o código e o volume daquele mês.")
 colunas_volume = [c for c in df.columns if "VOLUME COMPRADO" in str(c).upper()]
 if not colunas_volume:
     st.warning("Não encontrei colunas com 'VOLUME COMPRADO' no nome. Confere os títulos dos meses na planilha.")
@@ -109,9 +109,9 @@ else:
     mes = st.selectbox("📅 Mês do volume", list(meses.keys()), key="mes_volume")
     coluna_volume = meses[mes]
     p, m, g = st.columns(3)
-    with p: ver_p = st.button("P", use_container_width=True, key="volume_p")
-    with m: ver_m = st.button("M", use_container_width=True, key="volume_m")
-    with g: ver_g = st.button("G", use_container_width=True, key="volume_g")
+    with morto: ver_p = st.button("P", use_container_width=True, key="volume_p")
+    with até vai: ver_m = st.button("M", use_container_width=True, key="volume_m")
+    with top: ver_g = st.button("G", use_container_width=True, key="volume_g")
     if ver_p or ver_m or ver_g:
         volumes = pd.to_numeric(base[coluna_volume], errors="coerce").fillna(0)
         if ver_p:
